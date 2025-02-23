@@ -1,9 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { CreatePokemonDto } from './dto/create-pokemon.dto';
 import { UpdatePokemonDto } from './dto/update-pokemon.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Pokemon } from './entities/pokemon.entity';
-import { Model } from 'mongoose';
+import { isValidObjectId, Model } from 'mongoose';
 
 @Injectable()
 export class PokemonService {
@@ -11,20 +11,56 @@ export class PokemonService {
   constructor(
     @InjectModel(Pokemon.name)
     private readonly pokemonModel: Model<Pokemon>
-  ){}
+  ) { }
 
   async create(createPokemonDto: CreatePokemonDto) {
+
+
     createPokemonDto.name = createPokemonDto.name.toLowerCase();
-    const pokemon = await this.pokemonModel.create(createPokemonDto);
-    return pokemon;
+
+    try {
+
+      const pokemon = await this.pokemonModel.create(createPokemonDto);
+      return pokemon;
+
+    } catch (error) {
+
+      if (error.code === 11000) {
+        throw new BadRequestException(`Pokemon already exists ${JSON.stringify(error.keyValue)}`);
+      }
+      console.log('error :>> ', error);
+      throw new InternalServerErrorException('Error creating pokemon');
+    }
+
+
+
   }
 
   findAll() {
     return `This action returns all pokemon`;
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} pokemon`;
+  async findOne(numero: string) {
+
+    let pokemon: Pokemon | null = null;
+
+    if (!isNaN(+numero)) {
+      pokemon = await this.pokemonModel.findOne({ no: numero });
+    }
+
+    if (!pokemon && isValidObjectId(numero)) {
+      pokemon = await this.pokemonModel.findById(numero);
+    }
+
+    if(!pokemon){
+      pokemon = await this.pokemonModel.findOne({name: numero.toLowerCase()});
+    }
+  
+    if (!pokemon) {
+      throw new NotFoundException('Pokemon no encontrado');
+    }
+
+    return pokemon;
   }
 
   update(id: number, updatePokemonDto: UpdatePokemonDto) {
